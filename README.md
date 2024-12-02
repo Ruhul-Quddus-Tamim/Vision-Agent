@@ -1,8 +1,6 @@
 # Vision Agent
 
-## Introduction
-
----
+### Introduction
 
 An overview of all the agents, how they communicate, and how human-in-the-loop works.
 
@@ -12,9 +10,9 @@ An overview of all the agents, how they communicate, and how human-in-the-loop w
 
 `vision_agent_coder_v2:` A coding agent that generates and tests the final code. It can use the planner autonomously or rely on the finalized plan context provided by the planner.
 
-## Communication
-
 ---
+
+### Communication
 
 The agents communicate through AgentMessage's and return PlanContext's and CodeContext's for the planner and coder agent respectively.
 ```
@@ -35,21 +33,21 @@ _______________                          |
 ---------------
 ```
 
-## AgentMessage and Contexts
-
 ---
+
+### AgentMessage and Contexts
 
 The `AgentMessage` extends basic chat functionality with additional roles such as `conversation`, `planner`, and `coder`, which are subtypes of the assistant role. These roles correspond to `VisionAgentV2`, `VisionAgentPlannerV2`, and `VisionAgentCoderV2`. Observations result from executing Python code internally by the planner. The `VisionAgentPlannerV2` produces a `PlanContext` containing finalized plans, including instructions and code snippets, which the `VisionAgentCoderV2` uses to generate a `CodeContext` with the final code and supplementary details.
 
-## Callbacks
-
 ---
+
+### Callbacks
 
 If you want to recieve intermediate messages you can use the `update_callback` argument in all the `V2` constructors. This will asynchronously send `AgentMessage`'s to the callback function you provide. You can see an example of how to run this in `app.py`
 
-## Human-in-the-loop
-
 ---
+
+### Human-in-the-loop
 
 The Human-in-the-Loop (HITL) feature allows users to interact with agents during a conversation using `interaction` and `interaction_response` roles in `AgentMessage`. It can be enabled by setting `hil=True` in `VisionAgentV2`, but it requires using the `update_callback` to collect and pass messages back to `VisionAgentV2`. When the `planner` agent needs human input, it generates an `InteractionContext` that propagates to the user via `VisionAgentV2`, exiting the `planner`. The last `AgentMessage` collected via `update_callback` will have a role of `interaction` and contain a JSON string enclosed in `<interaction>` tags -
 
