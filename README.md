@@ -75,8 +75,7 @@ You can see an example of how this works in `chat-app/src/components/ChatSection
 
 ### Chatbot and Video Streaming
 
-![WhatsApp Image 2024-12-19 at 14 30 26](https://github.com/user-attachments/assets/1410a638-6dc3-44e0-a286-145dc560be62)
-
+<img width="1800" alt="Screenshot 2024-12-21 at 19 06 56" src="https://github.com/user-attachments/assets/6e31018e-706a-4de1-a35c-7a7d5d275fc5" />
 
 ---
 
