@@ -1,7 +1,6 @@
-import os
-os.environ["ANTHROPIC_API_KEY"] = "API_KEY"
-os.environ["OPENAI_API_KEY"] = "API_KEY"
+##########################################################################################
 
+import os
 import asyncio
 import os
 import cv2
@@ -21,6 +20,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+os.environ["ANTHROPIC_API_KEY"] = (
+    "YOUR_API_KEY"
+)
+os.environ["OPENAI_API_KEY"] = (
+    "YOUR_API_KEY"
+)
+
 from vision_agent.agent import VisionAgentV2
 from vision_agent.agent.types import AgentMessage
 from vision_agent.utils.execute import CodeInterpreterFactory
@@ -29,6 +35,8 @@ import time
 from datetime import datetime
 import subprocess
 import signal
+
+##########################################################################################
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -44,13 +52,15 @@ app.add_middleware(
 )
 
 # Serve uploaded media files
-app.mount("/uploaded_media", StaticFiles(directory="uploaded_media"), name="uploaded_media")
+app.mount(
+    "/uploaded_media", StaticFiles(directory="uploaded_media"), name="uploaded_media"
+)
 
 # WebSocket clients
 clients: List[WebSocket] = []
 camera_clients: List[WebSocket] = []  # Clients subscribed to camera feed
 
-# variables at the top with other global variables
+# Add these new variables at the top with other global variables
 recording = False
 video_writer = None
 camera_config = {
@@ -58,14 +68,16 @@ camera_config = {
     "password": None,
     "ip": None,
     "channel": None,
-    "subtype": None
+    "subtype": None,
 }
 ffmpeg_process = None
+
 
 # Helper: Async message update
 async def _async_update_callback(message: Dict[str, Any]):
     async with httpx.AsyncClient() as client:
         await client.post("http://localhost:8000/send_message", json=message)
+
 
 # Helper: Sync wrapper for async message update
 def update_callback(message: Dict[str, Any]):
@@ -74,6 +86,7 @@ def update_callback(message: Dict[str, Any]):
     asyncio.set_event_loop(loop)
     loop.run_until_complete(_async_update_callback(message))
     loop.close()
+
 
 # Initialize Vision Agent
 if DEBUG_HIL:
@@ -90,15 +103,18 @@ else:
     )
     code_interpreter = CodeInterpreterFactory.new_instance()
 
+
 # Pydantic models
 class Media(BaseModel):
     filePath: str  # Local file path for backend processing
-    fileUrl: str   # URL for frontend display
+    fileUrl: str  # URL for frontend display
+
 
 class Message(BaseModel):
     role: str
     content: str
     media: Optional[List[Media]] = None
+
 
 # Message processing in background
 def process_messages_background(messages: List[Dict[str, Any]]):
@@ -107,7 +123,9 @@ def process_messages_background(messages: List[Dict[str, Any]]):
             del message["media"]
         elif "media" in message and message["media"]:
             # Use local file paths for processing
-            message["media"] = [media_item["filePath"] for media_item in message["media"]]
+            message["media"] = [
+                media_item["filePath"] for media_item in message["media"]
+            ]
 
     # Pass the messages to the agent
     agent.chat(
@@ -122,6 +140,7 @@ def process_messages_background(messages: List[Dict[str, Any]]):
         code_interpreter=code_interpreter,
     )
 
+
 # Chat endpoint
 @app.post("/chat")
 async def chat(
@@ -135,6 +154,7 @@ async def chat(
         "message": "Your messages are being processed in the background",
     }
 
+
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -147,18 +167,20 @@ async def websocket_endpoint(websocket: WebSocket):
         clients.remove(websocket)
         print("Client disconnected")
 
+
 # Send message endpoint
 @app.post("/send_message")
 async def send_message(message: Dict[str, Any]):
     for client in clients:
         await client.send_json(message)
 
+
 @app.websocket("/camera-feed")
 async def camera_feed(websocket: WebSocket):
     global camera_config, camera_clients
-    
+
     await websocket.accept()
-    
+
     if not all(camera_config.values()):
         await websocket.send_json({"error": "Camera configuration incomplete"})
         return
@@ -167,13 +189,13 @@ async def camera_feed(websocket: WebSocket):
     print("Camera client connected.")
 
     rtsp_url = f"rtsp://{camera_config['username']}:{camera_config['password']}@{camera_config['ip']}:554/cam/realmonitor?channel={camera_config['channel']}&subtype={camera_config['subtype']}"
-    
+
     # Create a dedicated capture for live preview
     cap = None
     try:
         cap = cv2.VideoCapture(rtsp_url)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc("M", "J", "P", "G"))
         cap.set(cv2.CAP_PROP_FPS, 30)
 
         if not cap.isOpened():
@@ -224,16 +246,15 @@ async def camera_feed(websocket: WebSocket):
             camera_clients.remove(websocket)
         print("Camera client disconnected.")
 
+
 @app.websocket("/start-recording")
 async def start_recording(websocket: WebSocket):
     global recording, camera_config, ffmpeg_process
-    
+
     await websocket.accept()
-    
+
     if not all(camera_config.values()):
-        await websocket.send_json({
-            "error": "Camera configuration is incomplete"
-        })
+        await websocket.send_json({"error": "Camera configuration is incomplete"})
         return
 
     # Create a unique RTSP URL for recording to avoid conflicts
@@ -246,44 +267,50 @@ async def start_recording(websocket: WebSocket):
     os.makedirs("recordings", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = f"recordings/recording_{timestamp}.mp4"
-    
+
     try:
         ffmpeg_cmd = [
-            'ffmpeg',
-            '-y',  # Overwrite output file if it exists
-            '-f', 'rtsp',
-            '-rtsp_transport', 'tcp',
-            '-i', rtsp_url,
-            '-c:v', 'libx264',  # Use H.264 codec
-            '-preset', 'ultrafast',  # Faster encoding
-            '-crf', '23',  # Quality (lower is better, 18-28 is good)
-            '-vf', 'scale=1200:720',  # Scale to 720p
-            '-r', '30',  # 30 FPS
-            '-async', '1',  # Audio sync
-            output_path
+            "ffmpeg",
+            "-y",  # Overwrite output file if it exists
+            "-f",
+            "rtsp",
+            "-rtsp_transport",
+            "tcp",
+            "-i",
+            rtsp_url,
+            "-c:v",
+            "libx264",  # Use H.264 codec
+            "-preset",
+            "ultrafast",  # Faster encoding
+            "-crf",
+            "23",  # Quality (lower is better, 18-28 is good)
+            "-vf",
+            "scale=1200:720",  # Scale to 720p
+            "-r",
+            "30",  # 30 FPS
+            "-async",
+            "1",  # Audio sync
+            output_path,
         ]
-        
+
         # Start FFmpeg process
         startupinfo = None
-        if os.name == 'nt':
+        if os.name == "nt":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            
+
         ffmpeg_process = subprocess.Popen(
             ffmpeg_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            startupinfo=startupinfo
+            startupinfo=startupinfo,
         )
-        
+
         print(f"Started recording to {output_path}")
         recording = True
-        
-        await websocket.send_json({
-            "status": "recording_started",
-            "file": output_path
-        })
-        
+
+        await websocket.send_json({"status": "recording_started", "file": output_path})
+
         # Keep the recording WebSocket alive
         while recording and ffmpeg_process.poll() is None:
             try:
@@ -292,7 +319,7 @@ async def start_recording(websocket: WebSocket):
             except WebSocketDisconnect:
                 # Keep recording even if WebSocket disconnects
                 break
-            
+
     except Exception as e:
         print(f"Error during recording: {str(e)}")
         recording = False
@@ -301,24 +328,26 @@ async def start_recording(websocket: WebSocket):
     finally:
         pass  # Let stop_recording handle the cleanup
 
+
 @app.post("/stop-recording")
 async def stop_recording():
     global recording, ffmpeg_process
-    
+
     if ffmpeg_process and ffmpeg_process.poll() is None:
         ffmpeg_process.terminate()
         try:
             ffmpeg_process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             ffmpeg_process.kill()
-            
+
         stdout, stderr = ffmpeg_process.communicate()
         if stderr:
             print(f"FFmpeg output: {stderr.decode()}")
-    
+
     recording = False
     ffmpeg_process = None
     return {"status": "success"}
+
 
 # Upload media endpoint
 @app.post("/upload-media")
@@ -342,14 +371,17 @@ async def upload_media(file: UploadFile = File(...)) -> Dict[str, Any]:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
 @app.post("/set-camera-config")
 async def set_camera_config(data: dict):
     global camera_config
-    camera_config.update({
-        "username": data.get("username"),
-        "password": data.get("password"),
-        "ip": data.get("ip"),
-        "channel": data.get("channel"),
-        "subtype": data.get("subtype")
-    })
+    camera_config.update(
+        {
+            "username": data.get("username"),
+            "password": data.get("password"),
+            "ip": data.get("ip"),
+            "channel": data.get("channel"),
+            "subtype": data.get("subtype"),
+        }
+    )
     return {"status": "success", "message": "Camera configuration set successfully"}
