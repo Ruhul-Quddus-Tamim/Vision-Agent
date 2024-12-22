@@ -60,7 +60,7 @@ app.mount(
 clients: List[WebSocket] = []
 camera_clients: List[WebSocket] = []  # Clients subscribed to camera feed
 
-# Add these new variables at the top with other global variables
+# variables at the top with other global variables
 recording = False
 video_writer = None
 camera_config = {
