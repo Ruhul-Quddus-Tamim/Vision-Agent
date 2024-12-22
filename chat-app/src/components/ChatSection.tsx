@@ -46,7 +46,11 @@ const CollapsibleMessage = ({ content }: { content: string }) => {
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="flex items-center justify-between">
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="hover:bg-white/5 text-foreground"
+          >
             {isOpen ? (
               <ChevronUp className="h-4 w-4" />
             ) : (
@@ -54,11 +58,11 @@ const CollapsibleMessage = ({ content }: { content: string }) => {
             )}
           </Button>
         </CollapsibleTrigger>
-        <span className="text-sm font-medium">Observation</span>
+        <span className="text-sm font-medium text-foreground/80">Observation</span>
       </div>
       <CollapsibleContent>
-        <pre className="pt-2 bg-gray-100 p-2 rounded-md overflow-x-auto">
-          <code className="text-sm">{content}</code>
+        <pre className="mt-2 p-3 rounded-lg bg-secondary/30 border border-white/5 overflow-x-auto">
+          <code className="text-sm text-foreground font-mono">{content}</code>
         </pre>
       </CollapsibleContent>
     </Collapsible>
@@ -170,13 +174,13 @@ const formatAssistantContent = (role: string, content: string) => {
 export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div
-      className={`mb-4 ${
+      className={`message-bubble mb-4 ${
         message.role === "user" || message.role === "interaction_response"
-          ? "ml-auto bg-primary text-primary-foreground"
+          ? "ml-auto bg-primary/10 text-foreground"
           : message.role === "assistant"
-          ? "mr-auto bg-muted"
-          : "mr-auto bg-secondary"
-      } max-w-[80%] rounded-lg p-3`}
+          ? "mr-auto bg-white/10 text-foreground"
+          : "mr-auto bg-secondary/10 text-foreground"
+      } max-w-[80%] rounded-2xl p-4 shadow-sm border border-white/5`}
     >
       {message.role === "observation" ? (
         <CollapsibleMessage content={message.content} />
@@ -190,11 +194,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         formatAssistantContent(message.role, message.content)
       ) : (
         <div>
-          <strong className="text-gray-700">[{message.role.toUpperCase()}]</strong>{" "}
-          {message.content}
+          <span className="text-muted-foreground font-medium text-sm mb-1 block">
+            {message.role.toUpperCase()}
+          </span>
+          <div className="text-foreground">{message.content}</div>
         </div>
       )}
-      {/* Render media if any */}
       {message.media &&
         message.media.map((media, idx) => (
           <div key={idx} className="mt-2">
@@ -202,7 +207,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               href={media.fileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 underline"
+              className="text-primary/80 hover:text-primary transition-colors"
             >
               View Media
             </a>
@@ -356,9 +361,9 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
   };
 
   return (
-    <Card className="flex flex-col h-[800px]">
-      <ScrollArea className="flex-1 p-4 overflow-y-auto">
-        <div className="space-y-4">
+    <Card className="flex flex-col h-[800px] bg-background/50 backdrop-blur-sm border-white/5">
+      <ScrollArea className="flex-1 p-6">
+        <div className="space-y-6">
           {messages
             .filter((message) => checkContent(message.content))
             .map((message, i) => (
@@ -366,8 +371,8 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
             ))}
         </div>
       </ScrollArea>
-      <div className="p-4 border-t">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="p-4 border-t border-white/5">
+        <form onSubmit={handleSubmit} className="flex gap-3">
           <input
             type="file"
             id="file-upload"
@@ -379,15 +384,20 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
             variant="outline"
             size="icon"
             onClick={() => document.getElementById("file-upload")?.click()}
+            className="hover:bg-white/5 transition-colors"
           >
             <Upload className="h-4 w-4" />
           </Button>
           <input
             name="message"
-            className="flex-1 px-3 py-2 rounded-md border"
+            className="flex-1 px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
             placeholder="Type your message..."
           />
-          <Button type="submit" size="icon">
+          <Button 
+            type="submit" 
+            size="icon"
+            className="rounded-xl bg-primary/10 hover:bg-primary/20 text-foreground transition-all"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </form>
