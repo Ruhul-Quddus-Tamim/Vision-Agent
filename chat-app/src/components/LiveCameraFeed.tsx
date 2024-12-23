@@ -51,7 +51,7 @@ export function LiveCameraFeed() {
       }
 
       const newWs = new WebSocket("ws://localhost:8000/camera-feed");
-      
+
       newWs.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -88,12 +88,12 @@ export function LiveCameraFeed() {
 
   const startRecording = () => {
     const recordingSocket = new WebSocket("ws://localhost:8000/start-recording");
-    
+
     recordingSocket.onopen = () => {
       setIsRecording(true);
       setDuration(0);
       setRecordingStatus("Recording started");
-      
+
       const interval = setInterval(() => {
         setDuration(prev => prev + 1);
       }, 1000);
@@ -154,14 +154,14 @@ export function LiveCameraFeed() {
 
   return (
     <div className="relative w-full h-full bg-black flex flex-col justify-center items-center">
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/10 p-4 rounded-lg backdrop-blur">
-        <div className="grid grid-cols-1 gap-2 w-64">
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-white/10 p-4 rounded-2xl backdrop-blur">
+        <div className="grid grid-cols-1 gap-2 w-56">
           <input
             type="text"
             value={cameraConfig.username}
             onChange={(e) => setCameraConfig(prev => ({ ...prev, username: e.target.value }))}
             placeholder="Username"
-            className="px-3 py-2 rounded-md border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm rounded-full border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
           <input
@@ -169,7 +169,7 @@ export function LiveCameraFeed() {
             value={cameraConfig.password}
             onChange={(e) => setCameraConfig(prev => ({ ...prev, password: e.target.value }))}
             placeholder="Password"
-            className="px-3 py-2 rounded-md border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm rounded-full border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
           <input
@@ -177,7 +177,7 @@ export function LiveCameraFeed() {
             value={cameraConfig.ip}
             onChange={(e) => setCameraConfig(prev => ({ ...prev, ip: e.target.value }))}
             placeholder="IP Address"
-            className="px-3 py-2 rounded-md border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm rounded-full border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
           <input
@@ -185,7 +185,7 @@ export function LiveCameraFeed() {
             value={cameraConfig.channel}
             onChange={(e) => setCameraConfig(prev => ({ ...prev, channel: e.target.value }))}
             placeholder="Channel"
-            className="px-3 py-2 rounded-md border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm rounded-full border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
           <input
@@ -193,12 +193,12 @@ export function LiveCameraFeed() {
             value={cameraConfig.subtype}
             onChange={(e) => setCameraConfig(prev => ({ ...prev, subtype: e.target.value }))}
             placeholder="Subtype"
-            className="px-3 py-2 rounded-md border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm rounded-full border text-black w-full bg-white/90 focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isConnected}
           />
           <button
             onClick={isConnected ? () => ws?.close() : connectToCamera}
-            className={`px-4 py-2 rounded-md ${
+            className={`px-4 py-1.5 rounded-full text-sm ${
               isConnected ? "bg-red-600" : "bg-blue-600"
             } text-white w-full hover:opacity-90 transition-opacity`}
           >
@@ -209,9 +209,8 @@ export function LiveCameraFeed() {
 
       <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
         <div className="flex items-center gap-4 text-white">
-          <span className={`px-2 py-1 rounded ${
-            isConnected ? "bg-green-600" : "bg-red-600"
-          }`}>
+          <span className={`px-2 py-1 rounded ${isConnected ? "bg-green-600" : "bg-red-600"
+            }`}>
             {isConnected ? "Connected" : "Disconnected"}
           </span>
           {isRecording && (
@@ -237,7 +236,7 @@ export function LiveCameraFeed() {
             style={{ width: '960px', height: '540px' }}
           />
         ) : (
-          <p className="text-white">Connecting to camera feed...</p>
+          <p className="text-white">Connect to your own camera</p>
         )}
       </div>
 
@@ -245,11 +244,10 @@ export function LiveCameraFeed() {
         {!isRecording ? (
           <button
             onClick={startRecording}
-            className={`px-4 py-2 rounded-full ${
-              isConnected 
-                ? "bg-red-600 hover:bg-red-700" 
-                : "bg-gray-400 cursor-not-allowed"
-            } text-white transition-colors duration-200`}
+            className={`px-4 py-2 rounded-full ${isConnected
+              ? "bg-red-600 hover:bg-red-700"
+              : "bg-gray-400 cursor-not-allowed"
+              } text-white transition-colors duration-200`}
             disabled={!isConnected}
           >
             Start Recording
