@@ -10,6 +10,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Media {
   filePath: string; // Local file path for backend processing
@@ -220,6 +227,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 export function ChatSection({ onUploadedResult }: ChatSectionProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMedia, setCurrentMedia] = useState<Media | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("vision-agent");
 
   // Establish WebSocket connection
   useEffect(() => {
@@ -285,20 +293,19 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
     }
   };
 
+  const handleModelChange = (value: string) => {
+    setSelectedModel(value);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const input = e.currentTarget.elements.namedItem(
-      "message",
-    ) as HTMLInputElement;
+    const input = e.currentTarget.elements.namedItem("message") as HTMLInputElement;
     const messageContent = input.value.trim();
     if (!messageContent && !currentMedia) return;
 
     let newMessage: Message;
 
-    if (
-      messages.length > 0 &&
-      messages[messages.length - 1].role === "interaction"
-    ) {
+    if (messages.length > 0 && messages[messages.length - 1].role === "interaction") {
       newMessage = {
         role: "interaction_response",
         content: JSON.stringify({ function_name: messageContent }),
@@ -315,19 +322,19 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
     setMessages(updatedMessages);
 
     try {
-      console.log("Sending message:", newMessage);
       const response = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedMessages),
+        body: JSON.stringify({
+          messages: updatedMessages,
+          model: selectedModel,
+        }),
       });
 
       if (!response.ok) throw new Error("Message submission failed");
 
       const data = await response.json();
       console.log("Response received:", data);
-
-      // The assistant's response will come through WebSocket, so we don't handle it here
     } catch (error) {
       console.error("Error submitting message:", error);
       setMessages((prev) => [
@@ -339,7 +346,7 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
       ]);
     } finally {
       input.value = "";
-      setCurrentMedia(null); // Reset current media after sending the message
+      setCurrentMedia(null);
     }
   };
 
@@ -362,6 +369,45 @@ export function ChatSection({ onUploadedResult }: ChatSectionProps) {
 
   return (
     <Card className="flex flex-col h-[800px] bg-background/50 backdrop-blur-sm border-white/5">
+      <div className="p-4 border-b border-white/5">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-medium text-foreground/90">Chat</h2>
+          <Select value={selectedModel} onValueChange={handleModelChange}>
+            <SelectTrigger className="w-[180px] rounded-xl bg-white/5 border-white/10 text-foreground hover:bg-white/10 transition-all duration-200 hover:shadow-lg hover:shadow-primary/10">
+              <SelectValue placeholder="Select Model" />
+            </SelectTrigger>
+            <SelectContent className="bg-background/95 backdrop-blur-sm border border-white/10 rounded-xl shadow-xl animate-in fade-in-0 zoom-in-95 duration-200">
+              <SelectItem 
+                value="vision-agent" 
+                className="text-foreground/90 hover:bg-white/5 cursor-pointer focus:bg-white/10 rounded-lg my-1 transition-colors"
+              >
+                <div className="flex items-center gap-2 px-1 py-0.5">
+                  <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50"></div>
+                  Vision Agent
+                </div>
+              </SelectItem>
+              <SelectItem 
+                value="gemini-pro" 
+                className="text-foreground/90 hover:bg-white/5 cursor-pointer focus:bg-white/10 rounded-lg my-1 transition-colors"
+              >
+                <div className="flex items-center gap-2 px-1 py-0.5">
+                  <div className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50"></div>
+                  Gemini-1.5-pro
+                </div>
+              </SelectItem>
+              <SelectItem 
+                value="gemini-flash" 
+                className="text-foreground/90 hover:bg-white/5 cursor-pointer focus:bg-white/10 rounded-lg my-1 transition-colors"
+              >
+                <div className="flex items-center gap-2 px-1 py-0.5">
+                  <div className="w-2 h-2 rounded-full bg-green-400 shadow-sm shadow-green-400/50"></div>
+                  Gemini-1.5-flash
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <ScrollArea className="flex-1 p-6">
         <div className="space-y-6">
           {messages
