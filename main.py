@@ -1,6 +1,12 @@
-##########################################################################################
-
 import os
+
+os.environ["ANTHROPIC_API_KEY"] = (
+    "YOUR_API_KEY"
+)
+os.environ["OPENAI_API_KEY"] = (
+    "YOUR_API_KEY"
+)
+
 import asyncio
 import os
 import cv2
@@ -20,13 +26,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-os.environ["ANTHROPIC_API_KEY"] = (
-    "YOUR_API_KEY"
-)
-os.environ["OPENAI_API_KEY"] = (
-    "YOUR_API_KEY"
-)
-
 from vision_agent.agent import VisionAgentV2
 from vision_agent.agent.types import AgentMessage
 from vision_agent.utils.execute import CodeInterpreterFactory
@@ -35,8 +34,6 @@ import time
 from datetime import datetime
 import subprocess
 import signal
-
-##########################################################################################
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -60,7 +57,7 @@ app.mount(
 clients: List[WebSocket] = []
 camera_clients: List[WebSocket] = []  # Clients subscribed to camera feed
 
-# variables at the top with other global variables
+# Add these new variables at the top with other global variables
 recording = False
 video_writer = None
 camera_config = {
@@ -116,42 +113,102 @@ class Message(BaseModel):
     media: Optional[List[Media]] = None
 
 
-# Message processing in background
-def process_messages_background(messages: List[Dict[str, Any]]):
-    for message in messages:
-        if "media" in message and message["media"] is None:
-            del message["media"]
-        elif "media" in message and message["media"]:
-            # Use local file paths for processing
-            message["media"] = [
-                media_item["filePath"] for media_item in message["media"]
-            ]
+# Add new model request schema
+class ChatRequest(BaseModel):
+    messages: List[Message]
+    model: str = "vision-agent"
 
-    # Pass the messages to the agent
-    agent.chat(
-        [
-            AgentMessage(
-                role=message["role"],
-                content=message["content"],
-                media=message.get("media", None),
-            )
-            for message in messages
-        ],
-        code_interpreter=code_interpreter,
-    )
+
+# handlers for Gemini models
+async def handle_gemini_pro(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    # Placeholder for Gemini-1.5-pro implementation
+    return {
+        "role": "assistant",
+        "content": "<response>This is a placeholder response from Gemini-1.5-pro. The actual implementation will be added later.</response>",
+    }
+
+
+async def handle_gemini_flash(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    # Placeholder for Gemini-1.5-flash implementation
+    return {
+        "role": "assistant",
+        "content": "<response>This is a placeholder response from Gemini-1.5-flash. The actual implementation will be added later.</response>",
+    }
+
+
+# Message processing in background
+async def process_messages_background(
+    messages: List[Dict[str, Any]], model: str = "vision-agent"
+):
+    try:
+        if model == "vision-agent":
+            # Run Vision Agent in a separate thread to avoid event loop conflicts
+            def run_vision_agent():
+                try:
+                    for message in messages:
+                        if "media" in message and message["media"] is None:
+                            del message["media"]
+                        elif "media" in message and message["media"]:
+                            message["media"] = [
+                                media_item["filePath"]
+                                for media_item in message["media"]
+                            ]
+
+                    agent.chat(
+                        [
+                            AgentMessage(
+                                role=message["role"],
+                                content=message["content"],
+                                media=message.get("media", None),
+                            )
+                            for message in messages
+                        ],
+                        code_interpreter=code_interpreter,
+                    )
+                except Exception as e:
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(
+                        _async_update_callback(
+                            {
+                                "role": "assistant",
+                                "content": f"<response>Error in Vision Agent: {str(e)}</response>",
+                            }
+                        )
+                    )
+                    loop.close()
+
+            # Run Vision Agent in a thread pool
+            await asyncio.get_event_loop().run_in_executor(None, run_vision_agent)
+
+        elif model == "gemini-pro":
+            response = await handle_gemini_pro(messages)
+            await _async_update_callback(response)
+        elif model == "gemini-flash":
+            response = await handle_gemini_flash(messages)
+            await _async_update_callback(response)
+        else:
+            raise ValueError(f"Unknown model: {model}")
+
+    except Exception as e:
+        error_response = {
+            "role": "assistant",
+            "content": f"<response>Error processing request: {str(e)}</response>",
+        }
+        await _async_update_callback(error_response)
 
 
 # Chat endpoint
 @app.post("/chat")
 async def chat(
-    messages: List[Message], background_tasks: BackgroundTasks
+    request: ChatRequest, background_tasks: BackgroundTasks
 ) -> Dict[str, Any]:
-    background_tasks.add_task(
-        process_messages_background, [elt.dict() for elt in messages]
+    # Run the process_messages_background directly as an async function
+    await process_messages_background(
+        [msg.dict() for msg in request.messages], request.model
     )
     return {
         "status": "Processing started",
-        "message": "Your messages are being processed in the background",
+        "message": f"Your messages are being processed using {request.model}",
     }
 
 
@@ -227,7 +284,7 @@ async def camera_feed(websocket: WebSocket):
                 frame_base64 = base64.b64encode(buffer).decode("utf-8")
 
                 await websocket.send_text(frame_base64)
-                await asyncio.sleep(0.033)  # ~30fps
+                await asyncio.sleep(0.01)  # ~10fps
             except WebSocketDisconnect:
                 break
             except RuntimeError:
