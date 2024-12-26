@@ -1,10 +1,10 @@
 import os
 
 os.environ["ANTHROPIC_API_KEY"] = (
-    "YOUR_API_KEY"
+    "YOUR_ANTHROPIC_API_KEY"
 )
 os.environ["OPENAI_API_KEY"] = (
-    "YOUR_API_KEY"
+    "YOUR_OPENAI_API_KEY"
 )
 
 import asyncio
@@ -34,6 +34,7 @@ import time
 from datetime import datetime
 import subprocess
 import signal
+import google.generativeai as genai
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -57,7 +58,7 @@ app.mount(
 clients: List[WebSocket] = []
 camera_clients: List[WebSocket] = []  # Clients subscribed to camera feed
 
-# Add these new variables at the top with other global variables
+# variables at the top with other global variables
 recording = False
 video_writer = None
 camera_config = {
@@ -68,6 +69,15 @@ camera_config = {
     "subtype": None,
 }
 ffmpeg_process = None
+
+# Gemini API configuration
+genai.configure(api_key="YOUR_GEMINI_API_KEY")
+
+# global variable to store the latest uploaded file path
+latest_uploaded_file = None
+
+# Add a variable to track the current camera capture
+current_cap = None
 
 
 # Helper: Async message update
@@ -119,21 +129,83 @@ class ChatRequest(BaseModel):
     model: str = "vision-agent"
 
 
-# handlers for Gemini models
+# Update Gemini handlers
 async def handle_gemini_pro(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    # Placeholder for Gemini-1.5-pro implementation
-    return {
-        "role": "assistant",
-        "content": "<response>This is a placeholder response from Gemini-1.5-pro. The actual implementation will be added later.</response>",
-    }
+    try:
+        global latest_uploaded_file
+        model = genai.GenerativeModel(model_name="gemini-1.5-pro")
+
+        # Check if there's a new uploaded file in the current message
+        if messages[-1].get("media"):
+            latest_uploaded_file = messages[-1]["media"][0]["filePath"]
+
+        # Use the latest uploaded file if it exists
+        video_or_image_file = ""
+        if latest_uploaded_file:
+            video_or_image_file = genai.upload_file(path=latest_uploaded_file)
+
+            while video_or_image_file.state.name == "PROCESSING":
+                await asyncio.sleep(1)
+                video_or_image_file = genai.get_file(video_or_image_file.name)
+
+            if video_or_image_file.state.name == "FAILED":
+                raise ValueError("File processing failed")
+
+        # Generate response using the latest file
+        response = model.generate_content(
+            (
+                [video_or_image_file, messages[-1]["content"]]
+                if video_or_image_file
+                else messages[-1]["content"]
+            ),
+            request_options={"timeout": 600},
+        )
+
+        return {"role": "assistant", "content": f"<response>{response.text}</response>"}
+    except Exception as e:
+        return {
+            "role": "assistant",
+            "content": f"<response>Error in Gemini Pro: {str(e)}</response>",
+        }
 
 
 async def handle_gemini_flash(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    # Placeholder for Gemini-1.5-flash implementation
-    return {
-        "role": "assistant",
-        "content": "<response>This is a placeholder response from Gemini-1.5-flash. The actual implementation will be added later.</response>",
-    }
+    try:
+        global latest_uploaded_file
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+
+        # Check if there's a new uploaded file in the current message
+        if messages[-1].get("media"):
+            latest_uploaded_file = messages[-1]["media"][0]["filePath"]
+
+        # Use the latest uploaded file if it exists
+        video_or_image_file = ""
+        if latest_uploaded_file:
+            video_or_image_file = genai.upload_file(path=latest_uploaded_file)
+
+            while video_or_image_file.state.name == "PROCESSING":
+                await asyncio.sleep(1)
+                video_or_image_file = genai.get_file(video_or_image_file.name)
+
+            if video_or_image_file.state.name == "FAILED":
+                raise ValueError("File processing failed")
+
+        # Generate response using the latest file
+        response = model.generate_content(
+            (
+                [video_or_image_file, messages[-1]["content"]]
+                if video_or_image_file
+                else messages[-1]["content"]
+            ),
+            request_options={"timeout": 600},
+        )
+
+        return {"role": "assistant", "content": f"<response>{response.text}</response>"}
+    except Exception as e:
+        return {
+            "role": "assistant",
+            "content": f"<response>Error in Gemini Flash: {str(e)}</response>",
+        }
 
 
 # Message processing in background
@@ -234,7 +306,7 @@ async def send_message(message: Dict[str, Any]):
 
 @app.websocket("/camera-feed")
 async def camera_feed(websocket: WebSocket):
-    global camera_config, camera_clients
+    global camera_config, camera_clients, current_cap
 
     await websocket.accept()
 
@@ -242,20 +314,23 @@ async def camera_feed(websocket: WebSocket):
         await websocket.send_json({"error": "Camera configuration incomplete"})
         return
 
+    # Close existing camera connection if any
+    if current_cap is not None:
+        current_cap.release()
+        current_cap = None
+
     camera_clients.append(websocket)
     print("Camera client connected.")
 
     rtsp_url = f"rtsp://{camera_config['username']}:{camera_config['password']}@{camera_config['ip']}:554/cam/realmonitor?channel={camera_config['channel']}&subtype={camera_config['subtype']}"
 
-    # Create a dedicated capture for live preview
-    cap = None
     try:
-        cap = cv2.VideoCapture(rtsp_url)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc("M", "J", "P", "G"))
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        current_cap = cv2.VideoCapture(rtsp_url)
+        current_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        current_cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc("M", "J", "P", "G"))
+        current_cap.set(cv2.CAP_PROP_FPS, 30)
 
-        if not cap.isOpened():
+        if not current_cap.isOpened():
             await websocket.send_json({"error": "Unable to open camera stream"})
             if websocket in camera_clients:
                 camera_clients.remove(websocket)
@@ -265,20 +340,19 @@ async def camera_feed(websocket: WebSocket):
             if websocket not in camera_clients:
                 break
 
-            if not cap.isOpened():
-                cap.release()
-                cap = cv2.VideoCapture(rtsp_url)
-                if not cap.isOpened():
+            if not current_cap.isOpened():
+                current_cap.release()
+                current_cap = cv2.VideoCapture(rtsp_url)
+                if not current_cap.isOpened():
                     await asyncio.sleep(1)
                     continue
 
-            ret, frame = cap.read()
+            ret, frame = current_cap.read()
             if not ret:
                 await asyncio.sleep(0.1)
                 continue
 
             try:
-                # Resize frame for preview
                 frame = cv2.resize(frame, (960, 720))
                 _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 frame_base64 = base64.b64encode(buffer).decode("utf-8")
@@ -297,8 +371,9 @@ async def camera_feed(websocket: WebSocket):
     except Exception as e:
         print(f"Error in camera feed: {e}")
     finally:
-        if cap is not None:
-            cap.release()
+        if current_cap is not None:
+            current_cap.release()
+            current_cap = None
         if websocket in camera_clients:
             camera_clients.remove(websocket)
         print("Camera client disconnected.")
